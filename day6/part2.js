@@ -48,8 +48,44 @@ const lines = input.split('\n')
 const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const calcDist = (x, y) => p => dist({ x, y}, p);
 
-// this is painfully slow but it works
-const calcRegionClosestToAll = (lines, minDist) => {
+function* spiral(startX, startY) {
+  let len = 1;
+  let step = 0;
+  const right = [1, 0];
+  const left = [-1, 0];
+  const up = [0, -1];
+  const down = [0, 1];
+  let dir = right;
+  let x = startX;
+  let y = startY;
+  while(true) {
+    yield [x, y, len];
+    [x, y] = [x + dir[0], y + dir[1]];
+    step++;
+    if (step === len) {
+      step = 0;
+      switch (dir) {
+        case right:
+          dir = up;
+          break;
+        case up:
+          dir = left;
+          len++;
+          break;
+        case left:
+          dir = down;
+          break;
+        case down:
+          dir = right;
+          len++;
+          break;
+      }
+    }
+  }
+}
+
+// this is painfully slow
+const calcRegionClosestToAllSlow = (lines, minDist) => {
   const xs = lines.map(({ x }) => x);
   const ys = lines.map(({ y }) => y);
   const maxX = Math.max(...xs);
@@ -78,6 +114,42 @@ const calcRegionClosestToAll = (lines, minDist) => {
   return area;
 }
 
+// this is much better
+// start at center and spiral out
+// until we have gone around once without
+// finding a cell that matches the criteria
+// (after finding the first matching cell)
+const calcRegionClosestToAllFast = (lines, minDist) => {
+  const xs = lines.map(({ x }) => x);
+  const ys = lines.map(({ y }) => y);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+
+  let count = 0;
+  let area = 0;
+  let toFarCount = 0;
+
+  const maxIter = Math.max(maxX, maxY) ** 2;
+
+  for(const [x, y, legLen] of spiral(~~(maxX / 2), ~~(maxY / 2))) {
+    // if we have seen part of the area we are looking for
+    // and we have gone around the spiral once
+    // stop looking
+    if (area && toFarCount > legLen * 4) break;
+    // if we have covered 
+    if (count > maxIter) break;
+    if (_(lines).map(calcDist(x, y)).sum() < minDist) {
+      area++;
+      toFarCount = 0;
+    }
+    else {
+      toFarCount++;
+    }
+    count++;
+  }
+  return area;
+}
+
 const test1 = `1, 1
 1, 6
 8, 3
@@ -85,6 +157,17 @@ const test1 = `1, 1
 5, 5
 8, 9`.split('\n').map(line => re.exec(line).groups);
 
-// assert(calcRegionClosestToAll(test1, 32) === 16);
+assert(calcRegionClosestToAllFast(test1, 32) === 16);
 
-console.log(calcRegionClosestToAll(lines, 10000));
+console.time('fast');
+console.log(calcRegionClosestToAllFast(test1, 32));
+console.timeEnd('fast');
+
+console.time('slow');
+console.log(calcRegionClosestToAllSlow(test1, 32));
+console.timeEnd('slow');
+
+
+console.time('fast');
+console.log(calcRegionClosestToAllFast(lines, 10000));
+console.timeEnd('fast');
